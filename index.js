@@ -17,6 +17,15 @@ app.use("/api", otpRoutes);
 app.use("/api", commandRoutes);
 app.use("/api", tokenRoutes);
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Server is running successfully 🚀",
+    timestamp: new Date(),
+  });
+});
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
 
