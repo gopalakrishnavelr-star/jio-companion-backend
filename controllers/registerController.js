@@ -2,40 +2,35 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../config/db.js';
 
 // export const parentRegisterAccount = (req, res) => {
-//     const { fcm_token, email } = req.body;
+//   const { phone_number, fcm_token } = req.body;
 
-//     if (!fcm_token || !email) {
-//         return res.status(400).json({ message: "fcm_token and email is required" });
+//   if (!phone_number || !fcm_token) {
+//     return res.status(400).json({ message: "phone_number and fcm_token are required" });
+//   }
+
+//   const parent_dev_id = uuidv4();
+
+//   const sql = `
+//     INSERT INTO parent_devices (parent_dev_id, parent_fcm_token, phone_number, is_active)
+//     VALUES (?, ?, ?, 1)
+//     ON DUPLICATE KEY UPDATE 
+//       parent_fcm_token = VALUES(parent_fcm_token),
+//       is_active = 1
+//   `;
+
+//   db.query(sql, [parent_dev_id, fcm_token, phone_number], (err) => {
+//     if (err) {
+//       console.error("DB Error:", err);
+//       return res.status(500).json({ message: "Database error" });
 //     }
 
-//     const parent_dev_id = uuidv4(); // Generate unique UUID
-
-//     //   const sql = `
-//     //     INSERT INTO device_accounts (parent_dev_id, parent_fcm_token, is_active)
-//     //     VALUES (?, ?, 1)
-//     //   `;
-
-//     //   db.query(sql, [parent_dev_id, fcm_token], (err) => {
-//     //     if (err) {
-//     //       console.error("DB Error:", err);
-//     //       return res.status(500).json({ message: "Database error" });
-//     //     }
-
-//     const sql = `INSERT INTO parent_devices (parent_dev_id, parent_fcm_token, email) VALUES (?, ?, ?)`;
-//     db.query(sql, [parent_dev_id, fcm_token, email], (err) => {
-//         if (err) {
-//             console.error("DB Error:", err);
-//             return res.status(500).json({ message: "Database error" });
-//         }
-
-//         res.json({
-//             message: "Parent device registered successfully",
-//             parent_dev_id,
-//             email,
-//         });
+//     return res.json({
+//       message: "Parent device registered successfully",
+//       parent_dev_id,
+//       phone_number,
 //     });
+//   });
 // };
-
 
 export const parentRegisterAccount = (req, res) => {
   const { phone_number, fcm_token } = req.body;
@@ -44,62 +39,142 @@ export const parentRegisterAccount = (req, res) => {
     return res.status(400).json({ message: "phone_number and fcm_token are required" });
   }
 
-  const parent_dev_id = uuidv4();
+  // Does this parent already exist?
+  const checkSql = "SELECT parent_dev_id FROM parent_devices WHERE phone_number=? LIMIT 1";
 
-  const sql = `
-    INSERT INTO parent_devices (parent_dev_id, parent_fcm_token, phone_number, is_active)
-    VALUES (?, ?, ?, 1)
-    ON DUPLICATE KEY UPDATE 
-      parent_fcm_token = VALUES(parent_fcm_token),
-      is_active = 1
-  `;
-
-  db.query(sql, [parent_dev_id, fcm_token, phone_number], (err) => {
+  db.query(checkSql, [phone_number], (err, rows) => {
     if (err) {
       console.error("DB Error:", err);
-      return res.status(500).json({ message: "Database error" });
+      return res.status(500).json({ message: "Database lookup error" });
     }
 
-    return res.json({
-      message: "Parent device registered successfully",
-      parent_dev_id,
-      phone_number,
-    });
+    // ✔ Existing parent device → update FCM token
+    if (rows.length > 0) {
+      const parent_dev_id = rows[0].parent_dev_id;
+
+      const updateSql = `
+        UPDATE parent_devices 
+        SET parent_fcm_token=?, is_active=1 
+        WHERE phone_number=?
+      `;
+
+      db.query(updateSql, [fcm_token, phone_number], (err2) => {
+        if (err2) {
+          console.error("DB Error:", err2);
+          return res.status(500).json({ message: "Update error" });
+        }
+
+        return res.json({
+          message: "Parent device updated successfully",
+          parent_dev_id,
+          phone_number,
+        });
+      });
+    }
+
+    // ✔ New parent device → create new ID
+    else {
+      const parent_dev_id = uuidv4();
+
+      const insertSql = `
+        INSERT INTO parent_devices (parent_dev_id, phone_number, parent_fcm_token)
+        VALUES (?, ?, ?)
+      `;
+
+      db.query(insertSql, [parent_dev_id, phone_number, fcm_token], (err3) => {
+        if (err3) {
+          console.error("DB Error:", err3);
+          return res.status(500).json({ message: "Insert error" });
+        }
+
+        return res.json({
+          message: "Parent device registered successfully",
+          parent_dev_id,
+          phone_number,
+        });
+      });
+    }
   });
 };
 
 
+// export const childRegisterAccount = (req, res) => {
+//     const { phone_number, fcm_token } = req.body;
+
+//     if (!phone_number || !fcm_token) {
+//         return res.status(400).json({ message: "phone_number and fcm_token are required" });
+//     }
+
+//     const child_dev_id = uuidv4(); // Generate unique UUID
+
+//     //   const sql = `
+//     //     INSERT INTO device_accounts (child_dev_id, phone_number, child_fcm_token)
+//     //     VALUES (?, ?, ?)
+//     //   `;
+
+//     //   db.query(sql, [child_dev_id, phone_number, fcm_token], (err) => {
+//     //     if (err) {
+//     //       console.error("DB Error:", err);
+//     //       return res.status(500).json({ message: "Database error" });
+//     //     }
+//     const sql = `INSERT INTO child_devices (child_dev_id, phone_number, child_fcm_token)
+//                VALUES (?, ?, ?)`;
+//     db.query(sql, [child_dev_id, phone_number, fcm_token], (err) => {
+//         if (err) {
+//             console.error("DB Error:", err);
+//             return res.status(500).json({ message: "Database error" });
+//         }
+
+//         res.json({
+//             message: "Child device registered successfully",
+//             child_dev_id,
+//         });
+//     });
+// };
 
 export const childRegisterAccount = (req, res) => {
-    const { phone_number, fcm_token } = req.body;
+  const { phone_number, fcm_token } = req.body;
 
-    if (!phone_number || !fcm_token) {
-        return res.status(400).json({ message: "phone_number and fcm_token are required" });
-    }
+  if (!phone_number || !fcm_token) {
+    return res.status(400).json({ message: "phone_number and fcm_token are required" });
+  }
 
-    const child_dev_id = uuidv4(); // Generate unique UUID
+  const checkSql = "SELECT child_dev_id FROM child_devices WHERE phone_number=? LIMIT 1";
 
-    //   const sql = `
-    //     INSERT INTO device_accounts (child_dev_id, phone_number, child_fcm_token)
-    //     VALUES (?, ?, ?)
-    //   `;
+  db.query(checkSql, [phone_number], (err, rows) => {
+    if (err) return res.status(500).json({ message: "Database lookup error" });
 
-    //   db.query(sql, [child_dev_id, phone_number, fcm_token], (err) => {
-    //     if (err) {
-    //       console.error("DB Error:", err);
-    //       return res.status(500).json({ message: "Database error" });
-    //     }
-    const sql = `INSERT INTO child_devices (child_dev_id, phone_number, child_fcm_token)
-               VALUES (?, ?, ?)`;
-    db.query(sql, [child_dev_id, phone_number, fcm_token], (err) => {
-        if (err) {
-            console.error("DB Error:", err);
-            return res.status(500).json({ message: "Database error" });
-        }
+    if (rows.length > 0) {
+      const child_dev_id = rows[0].child_dev_id;
 
-        res.json({
-            message: "Child device registered successfully",
-            child_dev_id,
+      const updateSql = `
+        UPDATE child_devices 
+        SET child_fcm_token=?, is_active=1
+        WHERE phone_number=?
+      `;
+
+      db.query(updateSql, [fcm_token, phone_number], () => {
+        return res.json({
+          message: "Child device updated successfully",
+          child_dev_id,
+          phone_number,
         });
-    });
+      });
+    } else {
+      const child_dev_id = uuidv4();
+
+      const insertSql = `
+        INSERT INTO child_devices (child_dev_id, phone_number, child_fcm_token)
+        VALUES (?, ?, ?)
+      `;
+
+      db.query(insertSql, [child_dev_id, phone_number, fcm_token], () => {
+        return res.json({
+          message: "Child device registered successfully",
+          child_dev_id,
+          phone_number,
+        });
+      });
+    }
+  });
 };
