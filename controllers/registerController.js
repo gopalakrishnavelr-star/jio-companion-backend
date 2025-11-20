@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from '../config/db.js';
 
-
+function normalizePhone(number) {
+  return number.replace(/\D/g, "").slice(-10);
+}
 
 export const parentRegisterAccount = (req, res) => {
   const { phone_number, fcm_token } = req.body;
@@ -9,6 +11,8 @@ export const parentRegisterAccount = (req, res) => {
   if (!phone_number || !fcm_token) {
     return res.status(400).json({ message: "phone_number and fcm_token are required" });
   }
+
+  phone_number = normalizePhone(phone_number);
 
   // Does this parent already exist?
   const checkSql = "SELECT parent_dev_id FROM parent_devices WHERE phone_number=? LIMIT 1";
@@ -25,7 +29,7 @@ export const parentRegisterAccount = (req, res) => {
 
       const updateSql = `
         UPDATE parent_devices 
-        SET parent_fcm_token=?, is_active=1 
+        SET parent_fcm_token=?,
         WHERE phone_number=?
       `;
 
@@ -78,6 +82,9 @@ export const childRegisterAccount = (req, res) => {
     return res.status(400).json({ message: "phone_number and fcm_token are required" });
   }
 
+
+  phone_number = normalizePhone(phone_number);
+
   const checkSql = "SELECT child_dev_id FROM child_devices WHERE phone_number=? LIMIT 1";
 
   db.query(checkSql, [phone_number], (err, rows) => {
@@ -88,7 +95,7 @@ export const childRegisterAccount = (req, res) => {
 
       const updateSql = `
         UPDATE child_devices 
-        SET child_fcm_token=?, is_active=1
+        SET child_fcm_token=?,
         WHERE phone_number=?
       `;
 
